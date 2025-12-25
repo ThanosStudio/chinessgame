@@ -3,7 +3,6 @@ import { OpenRouter } from '@openrouter/sdk';
 // OpenRouter API 配置
 function getApiKey(): string {
   const API_KEY = process.env.OPENROUTER_API_KEY;
-  console.log('API_KEY ' + API_KEY);
   if (!API_KEY) {
     throw new Error('OPENROUTER_API_KEY environment variable is not set. Please set it in your Vercel environment variables.');
   }
@@ -105,7 +104,7 @@ ${SYSTEM_INSTRUCTION}
     
     // 使用 OpenRouter SDK 调用 API
     const response = await openrouter.chat.send({
-      model: 'google/gemini-2.0-flash', // OpenRouter 模型名称格式，也可以使用 'google/gemini-2.0-flash'
+      model: 'google/gemini-2.0-flash-exp', // OpenRouter 模型名称格式，也可以使用 'google/gemini-2.0-flash'
       messages: [
         {
           role: 'system',
