@@ -92,7 +92,7 @@ export async function generateDailyChallenge(dayNumber: number): Promise<Challen
   // 根据错误信息，v1beta API 可能不支持某些新模型
   // gemini-pro 在 v1 API 中可用，兼容性最好
   const model = genAI.getGenerativeModel({
-    model: 'gemini-pro',
+    model: 'gemini-1.5-flash',
     generationConfig,
   });
 
