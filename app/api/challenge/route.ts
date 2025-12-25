@@ -129,13 +129,13 @@ export async function GET(request: NextRequest) {
     });
 
     // 检查是否是 API Key 错误
-    if (errorMessage.includes('GEMINI_API_KEY')) {
+    if (errorMessage.includes('OPENROUTER_API_KEY') || errorMessage.includes('401') || errorMessage.includes('403')) {
       return NextResponse.json(
         {
           success: false,
           error: 'Configuration Error',
-          message: 'GEMINI_API_KEY is not set. Please configure it in your Vercel environment variables.',
-          details: 'Visit your Vercel project settings > Environment Variables to add GEMINI_API_KEY',
+          message: 'OPENROUTER_API_KEY is not set or invalid. Please configure it in your Vercel environment variables.',
+          details: 'Visit your Vercel project settings > Environment Variables to add OPENROUTER_API_KEY',
         },
         { status: 500 }
       );

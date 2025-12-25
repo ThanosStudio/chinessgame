@@ -5,7 +5,7 @@
 ## 功能特性
 
 - 🎯 每日3个挑战：汉字拆解、俚语翻译、表情符号成语
-- 🤖 由 Google Gemini AI 生成内容
+- 🤖 由 OpenRouter (Gemini 2.0 Flash) 生成内容
 - 📱 移动端优化，完美适配 Reddit 内置浏览器
 - 🔗 一键分享到 Reddit，生成格式化的分享文本
 - ⚡ 零摩擦体验，无需登录
@@ -14,7 +14,7 @@
 
 - **前端**: Next.js 14 (App Router), Tailwind CSS, Framer Motion, Lucide React
 - **后端**: Next.js API Routes
-- **AI**: Google Gemini 1.5 Flash
+- **AI**: OpenRouter (Gemini 2.0 Flash)
 - **部署**: Vercel
 
 ## 快速开始
@@ -26,8 +26,9 @@ npm install
 
 2. 配置环境变量：
 ```bash
-cp .env.example .env
-# 编辑 .env 文件，填入你的 GEMINI_API_KEY
+# 创建 .env 文件
+echo "OPENROUTER_API_KEY=your_api_key_here" > .env
+# 编辑 .env 文件，填入你的 OPENROUTER_API_KEY
 ```
 
 3. 运行开发服务器：
@@ -41,13 +42,13 @@ npm run dev
 
 1. 将代码推送到 GitHub
 2. 在 Vercel 中导入项目
-3. **重要**：添加环境变量 `GEMINI_API_KEY`（详见 [部署指南](./DEPLOYMENT.md)）
+3. **重要**：添加环境变量 `OPENROUTER_API_KEY`（详见 [部署指南](./DEPLOYMENT.md)）
 4. 重新部署项目使环境变量生效
 5. 部署完成！
 
 > ⚠️ **如果部署后总是显示默认题目，请查看 [部署指南](./DEPLOYMENT.md) 中的故障排除部分。**
 
-## 获取 Gemini API Key
+## 获取 OpenRouter API Key
 
-访问 [Google AI Studio](https://makersuite.google.com/app/apikey) 获取免费的 API 密钥。
+访问 [OpenRouter](https://openrouter.ai/keys) 注册并获取 API 密钥。OpenRouter 提供统一的接口访问多个 AI 模型，包括 Gemini 2.0 Flash。
 

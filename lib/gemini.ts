@@ -1,12 +1,20 @@
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import { OpenRouter } from '@openrouter/sdk';
 
-// Gemini API 配置
+// OpenRouter API 配置
 function getApiKey(): string {
-  const API_KEY = process.env.GEMINI_API_KEY;
+  const API_KEY = process.env.OPENROUTER_API_KEY;
   if (!API_KEY) {
-    throw new Error('GEMINI_API_KEY environment variable is not set. Please set it in your Vercel environment variables.');
+    throw new Error('OPENROUTER_API_KEY environment variable is not set. Please set it in your Vercel environment variables.');
   }
   return API_KEY;
+}
+
+// 初始化 OpenRouter 客户端
+function getOpenRouterClient() {
+  const apiKey = getApiKey();
+  return new OpenRouter({
+    apiKey,
+  });
 }
 
 // 挑战数据结构
@@ -75,26 +83,8 @@ const SYSTEM_INSTRUCTION = `你是一个专业的中文语言学习内容生成�
  * @returns Promise<Challenge>
  */
 export async function generateDailyChallenge(dayNumber: number): Promise<Challenge> {
-  // 检查 API Key
-  const API_KEY = getApiKey();
-  const genAI = new GoogleGenerativeAI(API_KEY);
-
-  // 配置生成参数，包含 responseMimeType 以确保 JSON 输出
-  const generationConfig: any = {
-    temperature: 0.7,
-    topP: 0.95,
-    topK: 40,
-    maxOutputTokens: 2048,
-    responseMimeType: 'application/json',
-  };
-
-  // 使用 gemini-pro，这是最稳定和广泛支持的模型
-  // 根据错误信息，v1beta API 可能不支持某些新模型
-  // gemini-pro 在 v1 API 中可用，兼容性最好
-  const model = genAI.getGenerativeModel({
-    model: 'gemini-2.0-flash',
-    generationConfig,
-  });
+  // 获取 OpenRouter 客户端
+  const openrouter = getOpenRouterClient();
 
   const prompt = `今天是第 ${dayNumber} 天的挑战。请生成今天的3个谜题。
 
@@ -105,29 +95,82 @@ ${SYSTEM_INSTRUCTION}
 - 所有选项长度相似，避免明显提示
 - 汉字拆解题要选择常用字
 - 俚语要选择真实存在且常用的
-- 表情符号成语要清晰易懂`;
+- 表情符号成语要清晰易懂
+
+请直接返回 JSON 格式，不要包含任何其他文本或 markdown 代码块。`;
 
   try {
-    console.log(`[Gemini] Generating challenge for day ${dayNumber}...`);
-    const result = await model.generateContent(prompt);
-    const response = await result.response;
-    const text = response.text();
+    console.log(`[OpenRouter] Generating challenge for day ${dayNumber}...`);
     
-    console.log(`[Gemini] Received response, length: ${text.length}`);
+    // 使用 OpenRouter SDK 调用 API
+    const response = await openrouter.chat.send({
+      model: 'google/gemini-2.0-flash-exp', // OpenRouter 模型名称格式，也可以使用 'google/gemini-2.0-flash'
+      messages: [
+        {
+          role: 'system',
+          content: SYSTEM_INSTRUCTION,
+        },
+        {
+          role: 'user',
+          content: prompt,
+        },
+      ],
+      temperature: 0.7,
+      maxTokens: 2048,
+      responseFormat: { type: 'json_object' }, // 请求 JSON 格式输出
+      stream: false, // 非流式响应
+    });
+
+    // OpenRouter SDK 返回格式：{ choices: [{ message: { content: "..." } }] }
+    const messageContent = response.choices?.[0]?.message?.content;
     
-    // 解析JSON响应
+    if (!messageContent) {
+      console.error('[OpenRouter] Invalid response structure:', JSON.stringify(response).substring(0, 500));
+      throw new Error('Invalid response structure from OpenRouter API');
+    }
+    
+    // 处理 content 可能是字符串或数组的情况
+    let text: string;
+    if (typeof messageContent === 'string') {
+      text = messageContent;
+    } else if (Array.isArray(messageContent)) {
+      // 如果是数组，提取所有文本内容
+      text = messageContent
+        .filter((item: any) => item.type === 'text')
+        .map((item: any) => item.text)
+        .join('');
+    } else {
+      throw new Error('Unexpected content format from OpenRouter API');
+    }
+    
+    if (!text) {
+      console.error('[OpenRouter] No text content in response:', JSON.stringify(messageContent).substring(0, 500));
+      throw new Error('No text content in OpenRouter API response');
+    }
+    
+    console.log(`[OpenRouter] Received response, length: ${text.length}`);
+    
+    // 解析JSON响应（可能需要清理 markdown 代码块）
+    let cleanText = text.trim();
+    // 移除可能的 markdown 代码块标记
+    if (cleanText.startsWith('```json')) {
+      cleanText = cleanText.replace(/^```json\n?/, '').replace(/\n?```$/, '');
+    } else if (cleanText.startsWith('```')) {
+      cleanText = cleanText.replace(/^```\n?/, '').replace(/\n?```$/, '');
+    }
+    
     let challenge: Challenge;
     try {
-      challenge = JSON.parse(text);
+      challenge = JSON.parse(cleanText);
     } catch (parseError) {
-      console.error('[Gemini] JSON parse error:', parseError);
-      console.error('[Gemini] Response text:', text.substring(0, 500));
+      console.error('[OpenRouter] JSON parse error:', parseError);
+      console.error('[OpenRouter] Response text:', cleanText.substring(0, 500));
       throw new Error(`Failed to parse JSON response: ${parseError instanceof Error ? parseError.message : 'Unknown error'}`);
     }
     
     // 验证数据结构
     if (!challenge.puzzles || !challenge.puzzles.hanzi || !challenge.puzzles.slang || !challenge.puzzles.emoji) {
-      console.error('[Gemini] Invalid challenge structure:', challenge);
+      console.error('[OpenRouter] Invalid challenge structure:', challenge);
       throw new Error('Invalid challenge structure from AI - missing required puzzle types');
     }
 
@@ -145,21 +188,21 @@ ${SYSTEM_INSTRUCTION}
     });
 
     challenge.day = dayNumber;
-    console.log(`[Gemini] Successfully generated challenge for day ${dayNumber}`);
+    console.log(`[OpenRouter] Successfully generated challenge for day ${dayNumber}`);
     return challenge;
   } catch (error) {
     // 记录详细错误信息
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     const errorStack = error instanceof Error ? error.stack : undefined;
     
-    console.error('[Gemini] Error generating challenge:', {
+    console.error('[OpenRouter] Error generating challenge:', {
       message: errorMessage,
       stack: errorStack,
       dayNumber,
     });
     
     // 如果是 API Key 相关的错误，直接抛出，不要返回默认挑战
-    if (errorMessage.includes('GEMINI_API_KEY') || errorMessage.includes('API key')) {
+    if (errorMessage.includes('OPENROUTER_API_KEY') || errorMessage.includes('API key') || errorMessage.includes('401') || errorMessage.includes('403')) {
       throw error;
     }
     
