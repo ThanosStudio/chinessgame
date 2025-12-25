@@ -41,8 +41,11 @@ npm run dev
 
 1. 将代码推送到 GitHub
 2. 在 Vercel 中导入项目
-3. 添加环境变量 `GEMINI_API_KEY`
-4. 部署完成！
+3. **重要**：添加环境变量 `GEMINI_API_KEY`（详见 [部署指南](./DEPLOYMENT.md)）
+4. 重新部署项目使环境变量生效
+5. 部署完成！
+
+> ⚠️ **如果部署后总是显示默认题目，请查看 [部署指南](./DEPLOYMENT.md) 中的故障排除部分。**
 
 ## 获取 Gemini API Key
 

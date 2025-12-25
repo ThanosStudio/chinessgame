@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { generateDailyChallenge } from '@/lib/gemini';
+import { generateDailyChallenge, getDefaultChallenge } from '@/lib/gemini';
 
 // 简单的内存缓存（生产环境建议使用 Redis 或 Vercel KV）
 const cache = new Map<string, { data: any; timestamp: number }>();
@@ -40,11 +40,14 @@ export async function GET(request: NextRequest) {
     const dateKey = getDateKey();
     const dayNumber = getDayNumber();
 
+    console.log(`[API] Request for challenge - Date: ${dateKey}, Day: ${dayNumber}`);
+
     // 检查缓存
     const cached = cache.get(dateKey);
     const now = Date.now();
 
     if (cached && (now - cached.timestamp) < CACHE_DURATION) {
+      console.log(`[API] Returning cached challenge for ${dateKey}`);
       // 返回缓存的数据
       return NextResponse.json({
         success: true,
@@ -53,20 +56,48 @@ export async function GET(request: NextRequest) {
       });
     }
 
+    console.log(`[API] Generating new challenge for day ${dayNumber}...`);
+    
     // 生成新的挑战
-    const challenge = await generateDailyChallenge(dayNumber);
-
-    // 更新缓存
-    cache.set(dateKey, {
-      data: challenge,
-      timestamp: now,
-    });
-
-    // 清理过期缓存（可选，防止内存泄漏）
-    for (const [key, value] of cache.entries()) {
-      if (now - value.timestamp >= CACHE_DURATION) {
-        cache.delete(key);
+    let challenge;
+    let isDefaultChallenge = false;
+    
+    try {
+      challenge = await generateDailyChallenge(dayNumber);
+      
+      // 检查是否是默认挑战（通过检查问题内容）
+      isDefaultChallenge = 
+        challenge.puzzles.hanzi.question === "拆解汉字：'明' 由哪两个部分组成？" ||
+        challenge.puzzles.slang.question === "'躺平' 是什么意思？" ||
+        challenge.puzzles.emoji.question === "🐉🐯 代表哪个成语？";
+      
+      if (isDefaultChallenge) {
+        console.warn(`[API] Generated challenge appears to be default challenge`);
       }
+    } catch (genError) {
+      console.error('[API] Failed to generate challenge, using default:', genError);
+      // 如果生成失败，使用默认挑战（但不缓存）
+      challenge = getDefaultChallenge(dayNumber);
+      isDefaultChallenge = true;
+    }
+
+    // 只有在成功生成真实挑战时才缓存（不缓存默认挑战）
+    if (!isDefaultChallenge) {
+      console.log(`[API] Caching generated challenge for ${dateKey}`);
+      // 更新缓存
+      cache.set(dateKey, {
+        data: challenge,
+        timestamp: now,
+      });
+
+      // 清理过期缓存（可选，防止内存泄漏）
+      for (const [key, value] of cache.entries()) {
+        if (now - value.timestamp >= CACHE_DURATION) {
+          cache.delete(key);
+        }
+      }
+    } else {
+      console.warn(`[API] Not caching default challenge`);
     }
 
     return NextResponse.json({
@@ -75,12 +106,30 @@ export async function GET(request: NextRequest) {
       cached: false,
     });
   } catch (error) {
-    console.error('Error in /api/challenge:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    console.error('[API] Error in /api/challenge:', {
+      message: errorMessage,
+      stack: error instanceof Error ? error.stack : undefined,
+    });
+
+    // 检查是否是 API Key 错误
+    if (errorMessage.includes('GEMINI_API_KEY')) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'Configuration Error',
+          message: 'GEMINI_API_KEY is not set. Please configure it in your Vercel environment variables.',
+          details: 'Visit your Vercel project settings > Environment Variables to add GEMINI_API_KEY',
+        },
+        { status: 500 }
+      );
+    }
+
     return NextResponse.json(
       {
         success: false,
         error: 'Failed to generate challenge',
-        message: error instanceof Error ? error.message : 'Unknown error',
+        message: errorMessage,
       },
       { status: 500 }
     );

@@ -1,13 +1,13 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
 // Gemini API 配置
-const API_KEY = process.env.GEMINI_API_KEY;
-
-if (!API_KEY) {
-  throw new Error('GEMINI_API_KEY environment variable is not set');
+function getApiKey(): string {
+  const API_KEY = process.env.GEMINI_API_KEY;
+  if (!API_KEY) {
+    throw new Error('GEMINI_API_KEY environment variable is not set. Please set it in your Vercel environment variables.');
+  }
+  return API_KEY;
 }
-
-const genAI = new GoogleGenerativeAI(API_KEY);
 
 // 挑战数据结构
 export interface Challenge {
@@ -75,6 +75,10 @@ const SYSTEM_INSTRUCTION = `你是一个专业的中文语言学习内容生成�
  * @returns Promise<Challenge>
  */
 export async function generateDailyChallenge(dayNumber: number): Promise<Challenge> {
+  // 检查 API Key
+  const API_KEY = getApiKey();
+  const genAI = new GoogleGenerativeAI(API_KEY);
+
   // 配置生成参数，包含 responseMimeType 以确保 JSON 输出
   const generationConfig: any = {
     temperature: 0.7,
@@ -101,21 +105,35 @@ ${SYSTEM_INSTRUCTION}
 - 表情符号成语要清晰易懂`;
 
   try {
+    console.log(`[Gemini] Generating challenge for day ${dayNumber}...`);
     const result = await model.generateContent(prompt);
     const response = await result.response;
     const text = response.text();
     
+    console.log(`[Gemini] Received response, length: ${text.length}`);
+    
     // 解析JSON响应
-    const challenge: Challenge = JSON.parse(text);
+    let challenge: Challenge;
+    try {
+      challenge = JSON.parse(text);
+    } catch (parseError) {
+      console.error('[Gemini] JSON parse error:', parseError);
+      console.error('[Gemini] Response text:', text.substring(0, 500));
+      throw new Error(`Failed to parse JSON response: ${parseError instanceof Error ? parseError.message : 'Unknown error'}`);
+    }
     
     // 验证数据结构
     if (!challenge.puzzles || !challenge.puzzles.hanzi || !challenge.puzzles.slang || !challenge.puzzles.emoji) {
-      throw new Error('Invalid challenge structure from AI');
+      console.error('[Gemini] Invalid challenge structure:', challenge);
+      throw new Error('Invalid challenge structure from AI - missing required puzzle types');
     }
 
     // 确保答案在选项中
     ['hanzi', 'slang', 'emoji'].forEach((type) => {
       const puzzle = challenge.puzzles[type as keyof typeof challenge.puzzles];
+      if (!puzzle.options || !Array.isArray(puzzle.options)) {
+        throw new Error(`Invalid options array for ${type}`);
+      }
       if (!puzzle.options.includes(puzzle.answer)) {
         puzzle.options.push(puzzle.answer);
         // 打乱选项顺序
@@ -124,11 +142,26 @@ ${SYSTEM_INSTRUCTION}
     });
 
     challenge.day = dayNumber;
+    console.log(`[Gemini] Successfully generated challenge for day ${dayNumber}`);
     return challenge;
   } catch (error) {
-    console.error('Error generating challenge:', error);
-    // 返回一个默认挑战作为后备
-    return getDefaultChallenge(dayNumber);
+    // 记录详细错误信息
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    const errorStack = error instanceof Error ? error.stack : undefined;
+    
+    console.error('[Gemini] Error generating challenge:', {
+      message: errorMessage,
+      stack: errorStack,
+      dayNumber,
+    });
+    
+    // 如果是 API Key 相关的错误，直接抛出，不要返回默认挑战
+    if (errorMessage.includes('GEMINI_API_KEY') || errorMessage.includes('API key')) {
+      throw error;
+    }
+    
+    // 其他错误也抛出，让调用者决定如何处理
+    throw new Error(`Failed to generate challenge: ${errorMessage}`);
   }
 }
 
@@ -147,7 +180,7 @@ function shuffleArray<T>(array: T[]): T[] {
 /**
  * 默认挑战（当AI生成失败时使用）
  */
-function getDefaultChallenge(dayNumber: number): Challenge {
+export function getDefaultChallenge(dayNumber: number): Challenge {
   return {
     day: dayNumber,
     puzzles: {
