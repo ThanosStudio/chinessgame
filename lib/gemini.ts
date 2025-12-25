@@ -104,7 +104,7 @@ ${SYSTEM_INSTRUCTION}
     
     // 使用 OpenRouter SDK 调用 API
     const response = await openrouter.chat.send({
-      model: 'google/gemini-2.0-flash-exp', // OpenRouter 模型名称格式，也可以使用 'google/gemini-2.0-flash'
+      model: 'google/gemini-2.0-flash-001', // OpenRouter 模型名称格式，也可以使用 'google/gemini-2.0-flash'
       messages: [
         {
           role: 'system',
