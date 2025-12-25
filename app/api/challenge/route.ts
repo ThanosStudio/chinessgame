@@ -36,6 +36,12 @@ function getDayNumber(): number {
  * 获取今日挑战，使用24小时缓存策略
  */
 export async function GET(request: NextRequest) {
+  // 立即输出日志，确保函数被执行
+  console.log('=== API CHALLENGE ROUTE CALLED ===');
+  console.log('Timestamp:', new Date().toISOString());
+  console.log('API Key exists:', !!process.env.GEMINI_API_KEY);
+  console.log('API Key length:', process.env.GEMINI_API_KEY?.length || 0);
+  
   try {
     const dateKey = getDateKey();
     const dayNumber = getDayNumber();
@@ -49,11 +55,16 @@ export async function GET(request: NextRequest) {
     if (cached && (now - cached.timestamp) < CACHE_DURATION) {
       console.log(`[API] Returning cached challenge for ${dateKey}`);
       // 返回缓存的数据
-      return NextResponse.json({
-        success: true,
-        challenge: cached.data,
-        cached: true,
-      });
+    const response = NextResponse.json({
+      success: true,
+      challenge: cached.data,
+      cached: true,
+    });
+    // 禁用 Vercel CDN 缓存
+    response.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    response.headers.set('Pragma', 'no-cache');
+    response.headers.set('Expires', '0');
+    return response;
     }
 
     console.log(`[API] Generating new challenge for day ${dayNumber}...`);
@@ -100,11 +111,16 @@ export async function GET(request: NextRequest) {
       console.warn(`[API] Not caching default challenge`);
     }
 
-    return NextResponse.json({
+    const response = NextResponse.json({
       success: true,
       challenge,
       cached: false,
     });
+    // 禁用 Vercel CDN 缓存
+    response.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    response.headers.set('Pragma', 'no-cache');
+    response.headers.set('Expires', '0');
+    return response;
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     console.error('[API] Error in /api/challenge:', {
@@ -135,6 +151,10 @@ export async function GET(request: NextRequest) {
     );
   }
 }
+
+// 禁用 Next.js 的静态优化和缓存
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
 // 允许所有HTTP方法（如果需要）
 export const runtime = 'nodejs';
