@@ -75,15 +75,18 @@ const SYSTEM_INSTRUCTION = `你是一个专业的中文语言学习内容生成�
  * @returns Promise<Challenge>
  */
 export async function generateDailyChallenge(dayNumber: number): Promise<Challenge> {
+  // 配置生成参数，包含 responseMimeType 以确保 JSON 输出
+  const generationConfig: any = {
+    temperature: 0.7,
+    topP: 0.95,
+    topK: 40,
+    maxOutputTokens: 2048,
+    responseMimeType: 'application/json',
+  };
+
   const model = genAI.getGenerativeModel({
     model: 'gemini-1.5-flash',
-    generationConfig: {
-      temperature: 0.7,
-      topP: 0.95,
-      topK: 40,
-      maxOutputTokens: 2048,
-      responseMimeType: 'application/json',
-    },
+    generationConfig,
   });
 
   const prompt = `今天是第 ${dayNumber} 天的挑战。请生成今天的3个谜题。
